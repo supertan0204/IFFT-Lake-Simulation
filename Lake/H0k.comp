@@ -1,0 +1,62 @@
+#version 440 core
+#define M_PI 3.1415926535897932384626433832795
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(rgba32f, binding = 0) uniform image2DArray tex0; 
+// tex0 stores tilde0 and input noise texture, the noise texture is on layer 0 and tilde0 is on layer 1
+// tilde0 consists of h0(k) in r, g channal, and h0(-k) in b, a channal
+
+
+uniform int N = 256;
+uniform int L = 1300;
+uniform float A = 4;
+uniform vec2 windDirection = vec2(1.0, 1.0);
+uniform float windspeed = 40;
+
+const float g = 9.81;
+
+vec4 gaussRND(){
+    ivec2 p1 = ivec2(gl_GlobalInvocationID.x - 1, gl_GlobalInvocationID.y);
+	ivec2 p2 = ivec2(gl_GlobalInvocationID.x + 1, gl_GlobalInvocationID.y);
+	ivec2 p3 = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y - 1);
+	ivec2 p4 = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y + 1);
+	float noise00 = clamp(imageLoad(tex0, ivec3(p1, 0)).r, 0.001, 1.0);
+	float noise01 = clamp(imageLoad(tex0, ivec3(p2, 0)).r, 0.001, 1.0);
+	float noise02 = clamp(imageLoad(tex0, ivec3(p3, 0)).r, 0.001, 1.0);
+	float noise03 = clamp(imageLoad(tex0, ivec3(p4, 0)).r, 0.001, 1.0);
+
+	float u0 = 2.0 * M_PI * noise00;
+	float v0 = sqrt(-2.0 * log(noise01));
+	float u1 = 2.0 * M_PI * noise02;
+	float v1 = sqrt(-2.0 * log(noise03));
+
+	vec4 rnd = vec4(v0 * cos(u0), v0 * sin(u0), v1 * cos(u1), v1 * sin(u1));
+
+	return rnd;
+}
+void main() {
+    vec2 x = vec2(vec2(gl_GlobalInvocationID.xy) - (float(N) / 2.0));
+	vec2 k = vec2(2.0 * M_PI * x.x / L, 2.0 * M_PI * x.y / L);
+
+	float L_ = (windspeed * windspeed) / g;
+	float mag = length(k);
+	if (mag < 0.00001) mag = 0.00001;
+	float magSq = mag * mag;
+
+	// sqrt(Ph(k)) / sqrt(2)
+	float h0k = clamp(sqrt((A / (magSq * magSq))
+	* pow(dot(normalize(k), normalize(windDirection)), 8.0) // change this power to modify the margin
+	* exp(-(1.0 / (magSq * L_ * L_)))
+	* exp(-magSq * pow(L / 2000.0, 2.0))) / sqrt(2.0), -4000, 4000);
+
+	// sqrt(Ph(-k)) / sqrt(2)
+	float h0minusk = clamp(sqrt((A / (magSq * magSq))
+	* pow(dot(normalize(-k), normalize(windDirection)), 8.0) // change this power to modify the margin
+	* exp(-(1.0 / (magSq * L_ * L_)))
+	* exp(-magSq * pow(L / 2000.0, 2.0))) / sqrt(2.0), -4000, 4000);
+
+	vec4 gauss_random = gaussRND();
+
+	imageStore(tex0, ivec3(gl_GlobalInvocationID.xy, 1), vec4(gauss_random.xy * h0k, gauss_random.zw * h0minusk));
+
+}

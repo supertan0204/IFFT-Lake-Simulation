@@ -1,0 +1,93 @@
+#version 440 core
+#define M_PI 3.1415926535897932384626433832795
+
+layout (local_size_x = 1, local_size_y = 1) in;
+
+// uniform image2Ds from H0k.comp
+layout (binding = 0, rgba32f) readonly uniform image2DArray tex0;
+layout (binding = 1, rgba32f) writeonly uniform image2DArray tex1; // tex1 contains 3 layers. The first layer is tilde_hkt, the second is tilde_disp, and the third is tilde_slope.
+
+
+uniform int N = 256;
+uniform int L = 1300;
+uniform float time;
+
+const float g = 9.81;
+
+
+struct complex{
+    float real;
+	float im;
+};
+
+
+complex mul(complex c0, complex c1){
+    complex c;
+	c.real = c0.real * c1.real - c0.im * c1.im;
+	c.im = c0.real * c1.im + c0.im * c1.real;
+	return c;
+}
+
+complex add(complex c0, complex c1){
+    complex c;
+	c.real = c0.real + c1.real;
+	c.im = c0.im + c1.im;
+	return c;
+}
+
+complex conj(complex c){
+    complex c_conj = complex(c.real, -c.im);
+	return c_conj;
+}
+
+
+void main(){
+    vec2 x = ivec2(gl_GlobalInvocationID.xy) - float(N) / 2.0;
+	vec2 k = vec2(2.0 * M_PI * x.x / L, 2.0 * M_PI * x.y / L);
+
+	float magnitude = length(k);
+	if(magnitude < 0.00001) magnitude = 0.00001;
+
+	float w = sqrt(g * magnitude);
+
+	vec2 tilde_h0k_values = imageLoad(tex0, ivec3(ivec2(gl_GlobalInvocationID), 1)).rg;
+    complex fourier_cmp = complex(tilde_h0k_values.x, tilde_h0k_values.y);
+
+	vec2 tilde_h0minusk_values = imageLoad(tex0, ivec3(ivec2(gl_GlobalInvocationID.xy), 1)).ba;
+	complex fourier_cmp_conj = conj(complex(tilde_h0minusk_values.x, tilde_h0minusk_values.y));
+
+	float cos_w_t = cos(w * time);
+	float sin_w_t = sin(w * time);
+
+	// Euler formula
+	complex exp_iwt = complex(cos_w_t, sin_w_t);
+	complex exp_iwt_inv = complex(cos_w_t, -sin_w_t);
+
+	// h_k_t
+	complex h_k_t = add(mul(fourier_cmp, exp_iwt), mul(fourier_cmp_conj, exp_iwt_inv));
+
+
+	// disp_x
+	complex dx = complex(0.0, -k.x / magnitude);
+	complex disp_x = mul(dx, h_k_t);
+
+	// disp_z
+	complex dy = complex(0.0, -k.y / magnitude);
+	complex disp_z = mul(dy, h_k_t);
+
+	// slope_x
+	complex dx1 = complex(0.0, k.x);
+	complex slope_x = mul(dx1, h_k_t);
+
+	// slope_z
+	complex dz1 = complex(0.0, k.y);
+	complex slope_z = mul(dz1, h_k_t);
+
+	imageStore(tex1, ivec3(ivec2(gl_GlobalInvocationID.xy), 0), vec4(h_k_t.real, h_k_t.im, 0, 1)); // tilde_hkt
+
+	// There we store the displacement and slope of direction x and z, however they are not used in Hkt texture rendering
+	imageStore(tex1, ivec3(ivec2(gl_GlobalInvocationID.xy), 1), vec4(disp_x.real, disp_x.im, disp_z.real, disp_z.im)); // tilde_disp
+
+	imageStore(tex1, ivec3(ivec2(gl_GlobalInvocationID.xy), 2), vec4(slope_x.real, slope_x.im, slope_z.real, slope_z.im)); // tilde_slope
+
+}

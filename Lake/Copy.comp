@@ -1,0 +1,44 @@
+#version 440 core
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 1, rgba32f) uniform image2DArray tex1;
+
+layout(binding = 2, rgba32f) writeonly uniform image2DArray tex2;
+
+uniform int status; 
+// this status specifies copy what texture. 1 stands for copy hkt, 2 stands for copy disp_x, 3 stands for copy disp_z, 4 stands for copy slope_x, 5 stands for copy disp_z.
+
+void main(void){
+    if (status == 1){
+	    ivec2 x = ivec2(gl_GlobalInvocationID.xy);
+	    vec4 data = vec4(imageLoad(tex1, ivec3(x, 0)).rg, 0, 0);
+	    imageStore(tex2, ivec3(x, 1), data);
+		//imageStore(tex2, ivec3(x, 2), vec4(0, 0, 0, 0));
+	}
+	else if (status == 2){
+	    ivec2 x = ivec2(gl_GlobalInvocationID.xy);
+		vec4 data = vec4(imageLoad(tex1, ivec3(x, 1)).rg, 0, 0);
+		imageStore(tex2, ivec3(x, 1), data);
+		//imageStore(tex2, ivec3(x, 2), vec4(0, 0, 0, 0));
+	}
+	else if (status == 3){
+	    ivec2 x = ivec2(gl_GlobalInvocationID.xy);
+		vec4 data = vec4(imageLoad(tex1, ivec3(x, 1)).ba, 0, 0);
+		imageStore(tex2, ivec3(x, 1), data);
+		//imageStore(tex2, ivec3(x, 2), vec4(0, 0, 0, 0));
+	}
+	else if (status == 4){
+	    ivec2 x = ivec2(gl_GlobalInvocationID.xy);
+		vec4 data = vec4(imageLoad(tex1, ivec3(x, 2)).rg, 0, 0);
+		imageStore(tex2, ivec3(x, 1), data);
+		//imageStore(tex2, ivec3(x, 2), vec4(0, 0, 0, 0));
+	}
+	else if (status == 5){
+	    ivec2 x = ivec2(gl_GlobalInvocationID.xy);
+		vec4 data = vec4(imageLoad(tex1, ivec3(x, 2)).ba, 0, 0);
+		imageStore(tex2, ivec3(x, 1), data);
+		//imageStore(tex2, ivec3(x, 2), vec4(0, 0, 0, 0));
+	}
+	
+}

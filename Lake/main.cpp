@@ -1,8 +1,7 @@
 /*
     Copy right Xiyang Tan, USTC
-	2022.5.22
 	Final project for computer graphics
-	Lake simulation
+	GPGPU FFT Lake simulation
 */
 
 
@@ -52,7 +51,7 @@ void printGLinfo() {
 	const GLubyte* glslVersion = glGetString(GL_SHADING_LANGUAGE_VERSION);
 	std::cout << "GLSL Version: " << glslVersion << std::endl;
 
-	///////////////////////// 获取最大的work group维数 ////////////////////////////////
+	///////////////////////// Obtain maximum work group ////////////////////////////////
 	int workGroupSize[3], workGroupInv;
 	// maximum globbal work group (total work in a dispatch)
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &workGroupSize[0]);
@@ -76,11 +75,11 @@ void printGLinfo() {
 	std::cout << "///////////////// Local hardware information ///////////////////" << std::endl;
 	/////////////////////////////////////////////////////////////////////////////////
 }
-//////////////////////  窗口动作处理  ///////////////////////////
+//////////////////////  Operation processing  ///////////////////////////
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
-////////////////////// 读文件的函数 /////////////////////////
+////////////////////// Read from files /////////////////////////
 std::string get_file_contents(const char* filename){
 	std::ifstream in(filename, std::ios::binary);
 	if (in)
@@ -119,14 +118,14 @@ const char* SkyboxFragSource = SkyboxFragCode.c_str();
 ////////////////////////////////////////////////////////////////////
  
 
-//////////////////  设置窗口大小  //////////////////////
+//////////////////  Window size  //////////////////////
 const unsigned int SCR_WIDTH = 1080;
 const unsigned int SCR_HEIGHT = 720;
 //////////////////////////////////////////////////////
 
-///////////////// 网格大小 /////////////////////////
+///////////////// FFT grid scale /////////////////////////
 const unsigned int FourierGridSize = 256;
-///////////////////// FFT 反序数组预计算 /////////////////
+///////////////////// Bit reversed sequence for FFT /////////////////
 int get_computation_layers(int num) {
 	int nLayers = 0;
 	int len = num;
@@ -153,7 +152,7 @@ auto reverse(int N) {
 }
 
 ///////////////////////////////////////////////////////
-//////////////// 摄像机 /////////////////
+//////////////// Camera /////////////////
 Camera camera(glm::vec3(0.0f, 0.2f, 1.0f));
 
 float lastX = (float)SCR_WIDTH / 2.0;
@@ -163,7 +162,7 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 ///////////////////////////////////////
-/////////////// 光照 ///////////////////
+/////////////// Lignting ///////////////////
 glm::vec3 lightPos(0.0f, 500.0f, 0.0f);
 ///////////////////////////////////////
 ///////////////////////////////////////////////////////
@@ -175,7 +174,7 @@ int main(int argc, char** argv)
 	temp = reverse(FourierGridSize);
 	int bit_reversed[FourierGridSize];
 	std::copy(temp.begin(), temp.end(), bit_reversed);
-	//////////////   一些初始化设定    /////////////////
+	////////////// Initializing context /////////////////
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
@@ -212,7 +211,7 @@ int main(int argc, char** argv)
 	printGLinfo();
 	////////////////////////////////////////////////////////////////////////
 
-	//////////////////// 读入天空盒数据 ///////////////////////
+	//////////////////// Skybox ///////////////////////
 	std::vector<std::string> faces
 	{
 		"..\\skybox\\right.jpg",
@@ -222,30 +221,12 @@ int main(int argc, char** argv)
 		"..\\skybox\\front.jpg",
 		"..\\skybox\\back.jpg"
 	};
-	//std::vector<std::string> faces
-	//{
-	//	"..\\skybox\\cm2_right.png",
-	//	"..\\skybox\\cm2_left.png",
-	//	"..\\skybox\\cm2_top.png",
-	//	"..\\skybox\\cm2_bottom.png",
-	//	"..\\skybox\\cm2_front.png",
-	//	"..\\skybox\\cm2_back.png"
-	//};
-	//std::vector<std::string> faces
-	//{
-	//	"..\\skybox\\dot_right.jpg",
-	//	"..\\skybox\\dot_left.jpg",
-	//	"..\\skybox\\dot_up.jpg",
-	//	"..\\skybox\\dot_down.jpg",
-	//	"..\\skybox\\dot_front.jpg",
-	//	"..\\skybox\\dot_back.jpg"
-	//};
 	unsigned int cubemap;
 	unsigned int cubemapTexture = loadCubemap(faces);
 	//////////////////////////////////////////////////////////
 
 
-	/////////////////// 创建，编译，链接着色器程序 ///////////////////
+	/////////////////// Create, compile and link shader programs///////////////////
 	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertexShader, 1, &vertexSource, NULL);
 	glCompileShader(vertexShader);
@@ -269,8 +250,8 @@ int main(int argc, char** argv)
 		std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
 		exit(1);
 	}
-	////////////////////////// 天空盒着色器 ////////////////////////////
-	////////// 顶点 ////////////
+	////////////////////////// Shader for skybox ////////////////////////////
+	////////// vertex ////////////
 	unsigned int SkyboxVertShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(SkyboxVertShader, 1, &SkyboxVertSource, NULL);
 	glCompileShader(SkyboxVertShader);
@@ -280,7 +261,7 @@ int main(int argc, char** argv)
 		std::cout << "ERROR:SHADER::VERT::COMPILATION_FAILED\n" << infoLog << std::endl;
 		exit(1);
 	}
-	////////// 片元 ////////////
+	////////// fragment ////////////
 	unsigned int SkyboxFragShader = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(SkyboxFragShader, 1, &SkyboxFragSource, NULL);
 	glCompileShader(SkyboxFragShader);
@@ -290,7 +271,7 @@ int main(int argc, char** argv)
 		std::cout << "ERROR:SHADER::FRAG::COMPILATION_FAILED\n" << infoLog << std::endl;
 		exit(1);
 	}
-	////////////////////////// 计算着色器 /////////////////////////////
+	////////////////////////// Compute shaders /////////////////////////////
 	unsigned int H0kComputeShader = glCreateShader(GL_COMPUTE_SHADER);
 	glShaderSource(H0kComputeShader, 1, &H0kComputeSource, NULL);
 	glCompileShader(H0kComputeShader);
@@ -350,7 +331,7 @@ int main(int argc, char** argv)
 	/////////////////////////////////////////////////////////////////
 
 
-	//////////////////// 生成渲染程序传入GPU //////////////////////////
+	//////////////////// Rendering program //////////////////////////
 	unsigned int renderProgram = glCreateProgram();
 	glAttachShader(renderProgram, vertexShader);
 	glAttachShader(renderProgram, fragmentShader);
@@ -366,7 +347,7 @@ int main(int argc, char** argv)
 	glUseProgram(renderProgram);
 	glUniform1i(glGetUniformLocation(renderProgram, "skybox"), 0);
 
-	///////////////// 天空盒 ///////////////////
+	///////////////// Skybox ///////////////////
 	unsigned int skyboxProgram = glCreateProgram();
 	glAttachShader(skyboxProgram, SkyboxVertShader);
 	glAttachShader(skyboxProgram, SkyboxFragShader);
@@ -383,7 +364,7 @@ int main(int argc, char** argv)
 	//////////////////////////////////////////////////////////////////////
   
 
-	//////////////////// 生成计算着色器程序(GPGPU)传入GPU ///////////////////////////////
+	//////////////////// Compute shader programs ///////////////////////////////
 	//////////////////// H0k ////////////////////
 	unsigned int H0kComputeProgram = glCreateProgram();
 	glAttachShader(H0kComputeProgram, H0kComputeShader);
@@ -475,51 +456,6 @@ int main(int argc, char** argv)
 
 
 	glEnable(GL_DEPTH_TEST);
-	//////////////////////////////////////////////////////////////////////////////////
-	/*float cubeVertices[] = {
-		// positions          // normals
-		-.5f, -.5f, -.5f,  0.0f,  0.0f, -1.0f,
-		 .5f, -.5f, -.5f,  0.0f,  0.0f, -1.0f,
-		 .5f,  .5f, -.5f,  0.0f,  0.0f, -1.0f,
-		 .5f,  .5f, -.5f,  0.0f,  0.0f, -1.0f,
-		-.5f,  .5f, -.5f,  0.0f,  0.0f, -1.0f,
-		-.5f, -.5f, -.5f,  0.0f,  0.0f, -1.0f,
-
-		-.5f, -.5f,  .5f,  0.0f,  0.0f, 1.0f,
-		 .5f, -.5f,  .5f,  0.0f,  0.0f, 1.0f,
-		 .5f,  .5f,  .5f,  0.0f,  0.0f, 1.0f,
-		 .5f,  .5f,  .5f,  0.0f,  0.0f, 1.0f,
-		-.5f,  .5f,  .5f,  0.0f,  0.0f, 1.0f,
-		-.5f, -.5f,  .5f,  0.0f,  0.0f, 1.0f,
-
-		-.5f,  .5f,  .5f, -1.0f,  0.0f,  0.0f,
-		-.5f,  .5f, -.5f, -1.0f,  0.0f,  0.0f,
-		-.5f, -.5f, -.5f, -1.0f,  0.0f,  0.0f,
-		-.5f, -.5f, -.5f, -1.0f,  0.0f,  0.0f,
-		-.5f, -.5f,  .5f, -1.0f,  0.0f,  0.0f,
-		-.5f,  .5f,  .5f, -1.0f,  0.0f,  0.0f,
-
-		 .5f,  .5f,  .5f,  1.0f,  0.0f,  0.0f,
-		 .5f,  .5f, -.5f,  1.0f,  0.0f,  0.0f,
-		 .5f, -.5f, -.5f,  1.0f,  0.0f,  0.0f,
-		 .5f, -.5f, -.5f,  1.0f,  0.0f,  0.0f,
-		 .5f, -.5f,  .5f,  1.0f,  0.0f,  0.0f,
-		 .5f,  .5f,  .5f,  1.0f,  0.0f,  0.0f,
-
-		-.5f, -.5f, -.5f,  0.0f, -1.0f,  0.0f,
-		 .5f, -.5f, -.5f,  0.0f, -1.0f,  0.0f,
-		 .5f, -.5f,  .5f,  0.0f, -1.0f,  0.0f,
-		 .5f, -.5f,  .5f,  0.0f, -1.0f,  0.0f,
-		-.5f, -.5f,  .5f,  0.0f, -1.0f,  0.0f,
-		-.5f, -.5f, -.5f,  0.0f, -1.0f,  0.0f,
-
-		-.5f,  .5f, -.5f,  0.0f,  1.0f,  0.0f,
-		 .5f,  .5f, -.5f,  0.0f,  1.0f,  0.0f,
-		 .5f,  .5f,  .5f,  0.0f,  1.0f,  0.0f,
-		 .5f,  .5f,  .5f,  0.0f,  1.0f,  0.0f,
-		-.5f,  .5f,  .5f,  0.0f,  1.0f,  0.0f,
-		-.5f,  .5f, -.5f,  0.0f,  1.0f,  0.0f
-	};*/
 	float skyboxVertices[] = {
 		// positions          
 		-1.0f,  1.0f, -1.0f,
@@ -574,69 +510,15 @@ int main(int argc, char** argv)
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-	// cube VAO
-	/*unsigned int cubeVAO, cubeVBO;
-	glGenVertexArrays(1, &cubeVAO);
-	glGenBuffers(1, &cubeVBO);
-	glBindVertexArray(cubeVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), &cubeVertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	*/
-	// load model
-	//Model surface("surface.obj");
-	Model surface("surface.obj");
-	//std::cout << surface.textures_loaded.size() << std::endl;
 	
-	/*float vertices[] = {
-		//// 坐标 ////   //// 纹理坐标 ////
-		 1.0f,  1.0f,      1.0f, 1.0f,
-		 1.0f, -1.0f,      1.0f, 0.0f,
-		-1.0f, -1.0f,      0.0f, 0.0f,
-		-1.0f,  1.0f,      0.0f, 1.0f
-	};
-	unsigned int indices[] = {  // note that we start from 0!
-		0, 1, 3,  // first Triangle
-		1, 2, 3   // second Triangle
-	};
-	unsigned int VBO, VAO, EBO;
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &EBO);
-	// bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-	glBindVertexArray(VAO);
+	///////////// load model /////////////
+	Model surface("surface.obj");
+	//////////////////////////////////////
 
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (GLvoid*)(2 * sizeof(float)));
-
-	// note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	// remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-	// You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-	// VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-	glBindVertexArray(0);
-	*/
-
-	////////////////////////// 设置H0k.comp的输出纹理[h0(k)和h0(-k)] ///////////////////////////////
+	////////////////////////// Comfigure output texture of H0k.comp [h0(k) and h0(-k)] ///////////////////////////////
 	int H0k_tex_w = FourierGridSize;
 	int H0k_tex_h = FourierGridSize;
-	//unsigned int tilde0;
-	///////////////////////////////// 传入辅助噪声纹理 /////////////////////////////////////////////////
+	///////////////////////////////// Auxiliary noise texture /////////////////////////////////////////////////
 	unsigned int tex0; // contains the noise texture, and texture h0k.
 	glGenTextures(1, &tex0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex0);
@@ -648,10 +530,11 @@ int main(int argc, char** argv)
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	// 在网站https://aeroson.github.io/rgba-noise-image-generator/里可以生成这个"noise1.png"
-	// 生成时设置参数: width不能小于这里的FourierGridSize, height不能小于这里的FourierGridSize
-	// IMPORTANT: 首先我们需要关闭G, B, A通道, 然后要把transform [-1, 1] range to: 调成-0.35, 1.35
-	// 这样就可以生成我们的noise1.png
+	//////////////////////////////////////////// Generating "noise1.png" ////////////////////////////////////////////////
+	// https://aeroson.github.io/rgba-noise-image-generator/                                                           //
+	// in this website, configure: width larger or equal to FourierGridSize, height larger or equal to FourierGridSize //
+	// IMPORTANT: turn off G, B, A tunnels, then set transform [-1, 1] range to: -0.35, 1.35                           //
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	if (data) {
 		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, w_noise, h_noise, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		glBindImageTexture(0, tex0, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA32F);
@@ -660,11 +543,7 @@ int main(int argc, char** argv)
 	else std::cout << "Failed to load noise texture r0." << std::endl;
 	stbi_image_free(data);
 	///////////////////////////////////////////////////////////////////////
-
-
-
-
-	///////////////////////////////// 设置hkt.comp的相关纹理 /////////////////////////////////////////
+	///////////////////////////////// Configure textures in hkt.comp /////////////////////////////////////////
 	////////// hkt /////////////
 	unsigned int tex1; // tex1 contains 3 layers. The first layer is tilde_hkt, the second is tilde_disp, and the third is tilde_slope. 
 	glGenTextures(1, &tex1); 
@@ -678,7 +557,7 @@ int main(int argc, char** argv)
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-	///////////////////////////////// 设置辅助纹理 ////////////////////////////////////
+	///////////////////////////////// Auxilary textures ////////////////////////////////////
 	unsigned int tex2; // contains butterfly texture, pingpong0 and pingpong1
 	glGenTextures(1, &tex2);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex2);
@@ -691,7 +570,7 @@ int main(int argc, char** argv)
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
-	///////////////////////////////// 设置choppy waves以及slope的ifft后产生的纹理 /////////////////////////
+	///////////////////////////////// Choppy waves and slope /////////////////////////
 	unsigned int tex3; // contains tex_disp_x (0), tex_disp_z (1), tex_slope_x (2), tex_slope_z (3)
 	glGenTextures(1, &tex3);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex3);
@@ -714,9 +593,10 @@ int main(int argc, char** argv)
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo);
 	glDispatchCompute((GLuint)FourierGridSize, (GLuint)FourierGridSize, 1);
 	
-	//////////////////////////////////////////////
+	////////////////////// Polygon mode or not ////////////////////////
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	///////////////// 游戏循环 //////////////////////
+
+	///////////////// Game loop //////////////////////
 	while (!glfwWindowShouldClose(window))
 	{
 		// per-frame time logic
@@ -739,10 +619,10 @@ int main(int argc, char** argv)
 		processInput(window);
 
 		
-		// 设置计算着色器变量在这里 //
+		// Configure compute shader //
 		glUseProgram(HktComputeProgram);
 		glDispatchCompute((GLuint)FourierGridSize, (GLuint)FourierGridSize, 1);
-		GLfloat timeValue = glfwGetTime() + 1000.f; // 设置时间
+		GLfloat timeValue = glfwGetTime() + 1000.f; // time
 		int timeLocation = glGetUniformLocation(HktComputeProgram, "time");
 		glUniform1f(timeLocation, timeValue);
 
@@ -751,7 +631,7 @@ int main(int argc, char** argv)
 		glUniform1i(statusLocation, 1);
 		glDispatchCompute((GLuint)FourierGridSize, (GLuint)FourierGridSize, 1);
 
-		
+		///////////////// Implementating IFFT /////////////////
 		int pingpong = 0;
 		int direction = 0;
 		for (int i = 0; i < log2(FourierGridSize); ++i) {
@@ -958,19 +838,12 @@ int main(int argc, char** argv)
 		whichLocation = glGetUniformLocation(DisplacementComputeProgram, "which");
 		glUniform1i(whichLocation, 5);
 		glDispatchCompute((GLuint)FourierGridSize, (GLuint)FourierGridSize, 1);
-
-
-
-
+		////////////////////// IFFT ended ////////////////////////////
 		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		
 		/////////////////////////
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		/////////////// 渲染纹理，查看输出 /////////////////
-		//glBindVertexArray(VAO); 
-		//glUseProgram(renderProgram);
-		//////// 设置摄像机 /////////
+		//////// Camera /////////
 		glUseProgram(renderProgram);
 		glm::mat4 view = camera.GetViewMatrix();
 		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -978,8 +851,8 @@ int main(int argc, char** argv)
 		glUniformMatrix4fv(glGetUniformLocation(renderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
 		glUniform3fv(glGetUniformLocation(renderProgram, "cameraPos"), 1, &camera.Position[0]);
 		//////////////////////////
-		////////// 光照 ///////////
-		// 光源信息
+		////////// Lignting ///////////
+		// Lignt source
 		glUniform3fv(glGetUniformLocation(renderProgram, "light.position"), 1, &lightPos[0]);
 		glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
 		glm::vec3 diffuseColor = lightColor * glm::vec3(.7f); // decrease the influence
@@ -987,31 +860,20 @@ int main(int argc, char** argv)
 		glUniform3fv(glGetUniformLocation(renderProgram, "light.ambient"), 1, &ambientColor[0]);
 		glUniform3fv(glGetUniformLocation(renderProgram, "light.diffuse"), 1, &diffuseColor[0]);
 		glUniform3fv(glGetUniformLocation(renderProgram, "light.specular"), 1, &glm::vec3(1.0f, 1.0f, 1.0f)[0]);
-		// 材质信息
-		glUniform3fv(glGetUniformLocation(renderProgram, "material.ambient"), 1, &glm::vec3(.12f, 0.53f, 1.f)[0]);
+		// Material
+		glUniform3fv(glGetUniformLocation(renderProgram, "material.ambient"), 1, &glm::vec3(.12f, 0.79f, 1.f)[0]);
 		glUniform3fv(glGetUniformLocation(renderProgram, "material.diffuse"), 1, &glm::vec3(.9f, .9f, .9f)[0]);
 		glUniform3fv(glGetUniformLocation(renderProgram, "material.specular"), 1, &glm::vec3(0.25f, 0.25f, 0.25f)[0]);
 		glUniform1f(glGetUniformLocation(renderProgram, "material.shininess"), 32.0f);
 
 		//////////////////////////
-		// render the loaded model
+		// Render the loaded model
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
 		model = glm::scale(model, glm::vec3(.1f, .1f, .1f));	// it's a bit too big for our scene, so scale it down
 		glUniformMatrix4fv(glGetUniformLocation(renderProgram, "model"), 1, GL_FALSE, &model[0][0]);
 		surface.Draw(renderProgram);
-		// cubes
-		//glBindVertexArray(cubeVAO);
-		//glDrawArrays(GL_TRIANGLES, 0, 36);
-		//glBindVertexArray(0);
-		
-		///////////////////////////
-		/////////////// 在这里修改要渲染的纹理 //////////////
-		//glBindTexture(GL_TEXTURE_2D_ARRAY, tex1);
-		//glBindTexture(GL_TEXTURE_2D_ARRAY, tex2);
-		//gBindTexture(GL_TEXTURE_2D_ARRAY, tex3);
-		///////////////////////////////////////
-		/////////////////////// 天空盒 /////////////////////
+		/////////////////////// Skybox /////////////////////
 		glDepthFunc(GL_LEQUAL);
 		glUseProgram(skyboxProgram);
 		view = glm::mat4(glm::mat3(camera.GetViewMatrix()));
@@ -1025,23 +887,13 @@ int main(int argc, char** argv)
 		glBindVertexArray(0);
 		glDepthFunc(GL_LESS); // set depth function back to default
 
-		
-		
-		///////////////////////////////////////
-		//glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		//////////////////////////
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		// -------------------------------------------------------------------------------
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-
-	//glDeleteVertexArrays(1, &cubeVAO);
 	glDeleteVertexArrays(1, &skyboxVAO);
-	//glDeleteBuffers(1, &cubeVBO);
 	glDeleteBuffers(1, &skyboxVBO);
-	//glDeleteBuffers(1, &VBO);
-	//glDeleteBuffers(1, &EBO);
 	glDeleteProgram(renderProgram);
 	glDeleteProgram(H0kComputeProgram);
 	glDeleteProgram(HktComputeProgram);

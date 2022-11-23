@@ -10,8 +10,8 @@ layout(rgba32f, binding = 0) uniform image2DArray tex0;
 uniform int N = 256;
 uniform int L = 1300;
 uniform float A = 4;
-uniform vec2 windDirection = vec2(1.0, 1.0);
-uniform float windspeed = 40;
+uniform vec2 windDirection = vec2(0.0, 1.0);
+uniform float windspeed = 100;
 
 const float g = 9.81;
 

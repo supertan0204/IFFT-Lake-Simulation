@@ -7,3 +7,5 @@ The final result looks like:
 and
 
 ![image](https://github.com/supertan0204/IFFT-Lake-Simulation/blob/master/IMG/12.png)
+
+Please access my thesis for this project [here](IMG/main.pdf).
